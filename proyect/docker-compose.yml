@@ -1,0 +1,42 @@
+services:
+  backend:
+    build:
+      context: ./back-Ventas_SpringBoot/Springboot-API-REST
+    image: innovatech-chile/tienda-backend:latest
+    ports:
+      - "3001:3001"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/tienda
+      SPRING_DATASOURCE_USERNAME: tienda
+      SPRING_DATASOURCE_PASSWORD: tienda123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      - db
+
+  frontend:
+    build:
+      context: ./front_despacho
+    image: innovatech-chile/tienda-frontend:latest
+    ports:
+      - "80:80"
+    environment:
+      VITE_API_BASE_URL: http://backend:3001
+    depends_on:
+      - backend
+
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: tienda
+      MYSQL_USER: tienda
+      MYSQL_PASSWORD: tienda123
+    ports:
+      - "3306:3306"
+    volumes:
+      - tienda_db_data:/var/lib/mysql
+
+volumes:
+  tienda_db_data:
+    name: tienda_db_data
