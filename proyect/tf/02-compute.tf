@@ -76,10 +76,10 @@ resource "aws_security_group" "sg_web" {
 }
 
 # SG App: The "Middle Layer".
-# UPDATED: Now allows port 3001 for the NodeJS Backend.
+# UPDATED: Now allows port 3001 and 302 for both Spring Boot Backends.
 resource "aws_security_group" "sg_app" {
   name        = "app-sg"
-  description = "Allow traffic from web-sg and NodeJS port 3001"
+  description = "Allow traffic from web-sg and Spring Boot ports 3001/3002"
   vpc_id      = aws_vpc.main.id
 
   # 1. SSH access restricted to Web Layer (Bastion)
@@ -91,17 +91,26 @@ resource "aws_security_group" "sg_app" {
     security_groups = [aws_security_group.sg_web.id]
   }
 
-  # # 2. THE FIX: NodeJS Backend Port
+  # 2. Backend Ventas Port
+  ingress {
+    description     = "Spring Boot Ventas API access from Web Layer"
+    from_port       = 3001
+    to_port         = 3001
+    protocol        = "tcp"
+    security_groups = [aws_security_group.sg_web.id]
+  }
+
+  # # 3. THE FIX: Backend Despachos Port
   # # This allows the frontend (on ec2-web) to call the API on port 3001.
   ingress {
-    description = "NodeJS API access from Web Layer"
-    from_port   = 3001
-    to_port     = 3001
+    description = "Spring Boot Despachos API access from Web Layer"
+    from_port   = 3002
+    to_port     = 3002
     protocol    = "tcp"
     security_groups = [aws_security_group.sg_web.id]
   }
 
-  # 3. ICMP for connectivity testing
+  # 4. ICMP for connectivity testing
   ingress {
     description = "ICMP from Web Layer"
     from_port   = -1
