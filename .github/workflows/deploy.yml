@@ -47,13 +47,13 @@ jobs:
     # 2. COMPILAR Y SUBIR BACKEND VENTAS
     - name: Build and Push Backend
       run: |
-        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_BACKEND }}:latest -f proyect/backend/Dockerfile ./proyect/backend
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_BACKEND }}:latest -f proyect/back-Ventas_SpringBoot/Springboot-API-REST/Dockerfile ./proyect/back-Ventas_SpringBoot
         docker push ${{ env.ECR_REGISTRY }}/${{ env.REPO_BACKEND }}:latest
 
     # 3. COMPILAR Y SUBIR BACKEND DESPACHOS
     - name: Build and Push Backend Despachos
       run: |
-        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_DESPACHOS }}:latest -f proyect/backend-despachos/Dockerfile ./proyect/backend-despachos
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_DESPACHOS }}:latest -f proyect/back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO/Dockerfile ./proyect/back-Despachos_SpringBoot
         docker push ${{ env.ECR_REGISTRY }}/${{ env.REPO_DESPACHOS }}:latest
 
   deploy-by-ssm:
