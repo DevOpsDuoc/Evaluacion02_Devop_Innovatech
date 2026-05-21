@@ -12,9 +12,10 @@ RUN mvn -B -DskipTests package
 FROM eclipse-temurin:17-jre AS runtime
 WORKDIR /app
 
-COPY --from=builder /app/target/*.jar /app/app.jar
-
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
+
+COPY --chown=appuser:appgroup --from=builder /app/target/*.jar /app/app.jar
+
 USER appuser
 
 EXPOSE 3001
