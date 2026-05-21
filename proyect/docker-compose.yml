@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: ./back-Ventas_SpringBoot/Springboot-API-REST
-    image: innovatech-chile/tienda-backend:latest
+    image: 
     ports:
       - "3001:3001"
     environment:
@@ -12,17 +12,32 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
     depends_on:
       - db
+      
+  backend-despachos:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/tienda-backend-despachos:latest
+    restart: always
+    ports:
+      - "3002:3002"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/tienda
+      SPRING_DATASOURCE_USERNAME: tienda
+      SPRING_DATASOURCE_PASSWORD: tienda123
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+    depends_on:
+      - db    
 
   frontend:
     build:
       context: ./front_despacho
-    image: innovatech-chile/tienda-frontend:latest
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/tienda-frontend:latest
     ports:
       - "80:80"
     environment:
       VITE_API_BASE_URL: http://backend:3001
+      VITE_API_DESPACHOS_URL: http://backend-despachos:3002
     depends_on:
       - backend
+      - backend-despachos
 
   db:
     image: mysql:8.0
