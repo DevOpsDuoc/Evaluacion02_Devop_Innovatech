@@ -2,7 +2,7 @@ services:
   backend:
     build:
       context: ./back-Ventas_SpringBoot/Springboot-API-REST
-    image: 
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/tienda-backend:latest
     ports:
       - "3001:3001"
     environment:
