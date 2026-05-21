@@ -41,7 +41,7 @@ jobs:
     # 1. COMPILAR Y SUBIR FRONTEND (Buscando el Dockerfile en su carpeta correspondiente)
     - name: Build and Push Frontend
       run: |
-        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_FRONTEND }}:latest -f proyect/frontend/Dockerfile ./proyect/frontend
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_FRONTEND }}:latest -f proyect/front-despachos/Dockerfile ./proyect/front-despachos
         docker push ${{ env.ECR_REGISTRY }}/${{ env.REPO_FRONTEND }}:latest
 
     # 2. COMPILAR Y SUBIR BACKEND VENTAS
