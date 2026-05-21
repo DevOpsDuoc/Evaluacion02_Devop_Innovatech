@@ -954,4 +954,4 @@ Innovatech Chile is a complete microservices platform demonstrating professional
 - **Security**: No open SSH ports; SSM Session Manager for remote execution
 - **Scalability**: Multi-AZ deployment with load balancing ready
 
-For the complete documentation index, visit: https://mintlify.com/DevOpsDuoc/Evaluacion02_Devop_Innovatech/llms.txt
+
