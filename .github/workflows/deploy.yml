@@ -1,79 +1,102 @@
-name: CI/CD Pipeline Innovatech AWS
+name: Deploy to Amazon ECS Instances (Innovatech)
 
 on:
   push:
-    branches:
-      - deploy # Despliega solo cuando se haga push a la rama "deploy"
-      - main   
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: "118812498736"
+  ECR_REGISTRY: "118812498736.dkr.ecr.us-east-1.amazonaws.com"
+  
+  # Repositorios ECR reales de tu proyecto
+  REPO_FRONTEND: tienda-frontend
+  REPO_BACKEND: tienda-backend
+  REPO_DESPACHOS: tienda-backend-despachos
+
+permissions:
+  contents: read
 
 jobs:
   build-and-push:
+    name: Build and Push to ECR
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout del código
-        uses: actions/checkout@v3
+    - name: Checkout Code
+      uses: actions/checkout@v4
 
-      - name: Configurar credenciales de AWS
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }} # Crucial para AWS Academy
+        aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login en Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-      #construcción y push de las imágenes a ECR
+    # 1. COMPILAR Y SUBIR FRONTEND (Buscando el Dockerfile en su carpeta correspondiente)
+    - name: Build and Push Frontend
+      run: |
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_FRONTEND }}:latest -f proyect/frontend/Dockerfile ./proyect/frontend
+        docker push ${{ env.ECR_REGISTRY }}/${{ env.REPO_FRONTEND }}:latest
 
-      - name: Construir y Publicar Frontend
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        run: |
-          docker build -t $ECR_REGISTRY/tienda-frontend:latest ./proyect/front_despacho
-          docker push $ECR_REGISTRY/tienda-frontend:latest
+    # 2. COMPILAR Y SUBIR BACKEND VENTAS
+    - name: Build and Push Backend
+      run: |
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_BACKEND }}:latest -f proyect/backend/Dockerfile ./proyect/backend
+        docker push ${{ env.ECR_REGISTRY }}/${{ env.REPO_BACKEND }}:latest
 
-      - name: Construir y Publicar Backend Ventas
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        run: |
-          docker build -t $ECR_REGISTRY/tienda-backend:latest ./proyect/back-Ventas_SpringBoot/Springboot-API-REST
-          docker push $ECR_REGISTRY/tienda-backend:latest
+    # 3. COMPILAR Y SUBIR BACKEND DESPACHOS
+    - name: Build and Push Backend Despachos
+      run: |
+        docker build -t ${{ env.ECR_REGISTRY }}/${{ env.REPO_DESPACHOS }}:latest -f proyect/backend-despachos/Dockerfile ./proyect/backend-despachos
+        docker push ${{ env.ECR_REGISTRY }}/${{ env.REPO_DESPACHOS }}:latest
 
-      - name: Construir y Publicar Backend Despachos
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-        run: |
-          docker build -t $ECR_REGISTRY/tienda-backend-despachos:latest ./proyect/back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
-          docker push $ECR_REGISTRY/tienda-backend-despachos:latest
-
-  deploy:
+  deploy-by-ssm:
+    name: Update Instances via SSM
     needs: build-and-push
     runs-on: ubuntu-latest
-    steps:
-      - name: Configurar credenciales de AWS
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
-          aws-region: us-east-1
 
-      - name: Desplegar en EC2 mediante AWS Systems Manager (SSM)
-        run: |
-          aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --comment "Actualizando contenedores en ambiente de producción" \
-            --parameters 'commands=[
-              "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
-              "mkdir -p /home/ec2-user/app && cd /home/ec2-user/app",
-              "export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}",
-              "curl -s https://raw.githubusercontent.com/${{ github.repository }}/deploy/proyect/docker-compose.yml -o docker-compose.yml",
-              "docker compose pull",
-              "docker compose up -d --remove-orphans"
-            ]'
+    steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    # Orden remota a la máquina ec2-web para actualizar el Frontend
+    - name: Refresh Frontend Container on ec2-web
+      run: |
+        aws ssm send-command \
+          --document-name "AWS-RunShellScript" \
+          --targets "Key=tag:Name,Values=ec2-web" \
+          --comment "Update frontend container" \
+          --parameters 'commands=[
+            "aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin '${{ env.ECR_REGISTRY }}'",
+            "sudo docker pull '${{ env.ECR_REGISTRY }}'/'${{ env.REPO_FRONTEND }}':latest",
+            "sudo docker rm -f tienda-frontend || true",
+            "sudo docker run -d --name tienda-frontend --restart always -p 80:80 '${{ env.ECR_REGISTRY }}'/'${{ env.REPO_FRONTEND }}':latest"
+          ]'
+
+    # Orden remota a la máquina ec2-app para actualizar ambos Backends
+    - name: Refresh Backend Containers on ec2-app
+      run: |
+        aws ssm send-command \
+          --document-name "AWS-RunShellScript" \
+          --targets "Key=tag:Name,Values=ec2-app" \
+          --comment "Update backend containers" \
+          --parameters 'commands=[
+            "aws ecr get-login-password --region us-east-1 | sudo docker login --username AWS --password-stdin '${{ env.ECR_REGISTRY }}'",
+            "sudo docker pull '${{ env.ECR_REGISTRY }}'/'${{ env.REPO_BACKEND }}':latest",
+            "sudo docker pull '${{ env.ECR_REGISTRY }}'/'${{ env.REPO_DESPACHOS }}':latest",
+            "sudo docker rm -f tienda-backend || true",
+            "sudo docker rm -f tienda-backend-despachos || true",
+            "sudo docker run -d --name tienda-backend --restart always -p 3001:3001 '${{ env.ECR_REGISTRY }}'/'${{ env.REPO_BACKEND }}':latest",
+            "sudo docker run -d --name tienda-backend-despachos --restart always -p 3002:3002 '${{ env.ECR_REGISTRY }}'/'${{ env.REPO_DESPACHOS }}':latest"
+          ]'
