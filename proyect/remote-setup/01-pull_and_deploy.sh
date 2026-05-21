@@ -1,12 +1,25 @@
 #!/bin/bash
+# Script de automatización de despliegue continuo para Innovatech Chile
 
-# remote-setup/pull_and_deploy.sh
+echo "==============================================="
+echo "Iniciando proceso de despliegue en AWS EC2"
+echo "==============================================="
 
-# in $HOME/setup, create the new playbook
-touch deploy.yml
+# 1. Autenticar Docker con Amazon ECR usando las credenciales del rol de la instancia
+echo "Autenticando con Amazon ECR..."
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
 
-# PASTE the contents of deploy.yml
-vi deploy.yml
+# 2. Asegurar el directorio de la aplicación
+cd /home/ec2-user/app || exit 1
 
-# execute it
-ansible-playbook -i inventory.ini deploy.yml
+# 3. Descargar las imágenes más recientes desde el registro privado
+echo "Descargando últimas imágenes optimizadas..."
+docker compose pull
+
+# 4. Reiniciar el stack completo de contenedores en segundo plano (Ventas, Despachos, Frontend y Base de datos)
+echo "Levantando servicios de la Tienda de Perritos..."
+docker compose up -d --remove-orphans
+
+echo "==============================================="
+echo "Despliegue completado con éxito"
+echo "==============================================="
