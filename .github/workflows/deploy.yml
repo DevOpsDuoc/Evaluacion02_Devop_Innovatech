@@ -1,0 +1,79 @@
+name: CI/CD Pipeline Innovatech AWS
+
+on:
+  push:
+    branches:
+      - deploy # Despliega cuando se haga push a la rama "deploy"
+      - main   
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login en Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      #construcción y push de las imágenes a ECR
+
+      - name: Construir y Publicar Frontend
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          docker build -t $ECR_REGISTRY/tienda-frontend:latest ./proyect/front_despacho
+          docker push $ECR_REGISTRY/tienda-frontend:latest
+
+      - name: Construir y Publicar Backend Ventas
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          docker build -t $ECR_REGISTRY/tienda-backend:latest ./proyect/back-Ventas_SpringBoot/Springboot-API-REST
+          docker push $ECR_REGISTRY/tienda-backend:latest
+
+      - name: Construir y Publicar Backend Despachos
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+        run: |
+          docker build -t $ECR_REGISTRY/tienda-backend-despachos:latest ./proyect/back-Despachos_SpringBoot/Springboot-API-REST-DESPACHO
+          docker push $ECR_REGISTRY/tienda-backend-despachos:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Desplegar en EC2 mediante AWS Systems Manager (SSM)
+        run: |
+          aws ssm send-command \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Actualizando contenedores en ambiente de producción" \
+            --parameters 'commands=[
+              "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com",
+              "mkdir -p /home/ec2-user/app && cd /home/ec2-user/app",
+              "export AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}",
+              "curl -s https://raw.githubusercontent.com/${{ github.repository }}/deploy/proyect/docker-compose.yml -o docker-compose.yml",
+              "docker compose pull",
+              "docker compose up -d --remove-orphans"
+            ]'
